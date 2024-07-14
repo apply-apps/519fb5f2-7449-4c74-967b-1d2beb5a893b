@@ -1,108 +1,181 @@
 // Filename: index.js
 // Combined code from all files
+import React, { useState, useEffect, useRef } from 'react';
+import { SafeAreaView, StyleSheet, View, Text, Alert, TouchableOpacity, Dimensions, Platform } from 'react-native';
 
-import React, { useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TextInput, Button, ScrollView, View, ActivityIndicator } from 'react-native';
-import axios from 'axios';
+const CELL_SIZE = 20;
+const BOARD_SIZE = 16; // 16x16 grid
 
-export default function App() {
-  const [hero, setHero] = useState('');
-  const [villain, setVillain] = useState('');
-  const [plot, setPlot] = useState('');
-  const [story, setStory] = useState('');
-  const [loading, setLoading] = useState(false);
+const directions = {
+    UP: { x: 0, y: -1 },
+    DOWN: { x: 0, y: 1 },
+    LEFT: { x: -1, y: 0 },
+    RIGHT: { x: 1, y: 0 },
+};
 
-  const getStory = async () => {
-    if (!hero || !villain || !plot) {
-      alert('Please fill out all fields');
-      return;
-    }
+const getRandomPosition = () => {
+    const max = BOARD_SIZE - 1;
+    return {
+        x: Math.floor(Math.random() * max),
+        y: Math.floor(Math.random() * max),
+    };
+};
 
-    setLoading(true);
-    setStory('');
+const App = () => {
+    const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
+    const [direction, setDirection] = useState(directions.RIGHT);
+    const [food, setFood] = useState(getRandomPosition);
+    const [score, setScore] = useState(0);
+    const timerRef = useRef(null);
 
-    try {
-      const response = await axios.post('http://apihub.p.appply.xyz:3300/chatgpt', {
-        messages: [
-          { role: "system", content: "You are a helpful assistant. Please provide answers for given requests." },
-          { role: "user", content: `Create a fairy tale with the hero ${hero}, villain ${villain}, and plot ${plot}.` }
-        ],
-        model: "gpt-4o"
-      });
+    useEffect(() => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+        }
+        timerRef.current = setInterval(moveSnake, 200);
+        return () => clearInterval(timerRef.current);
+    }, [snake, direction]);
 
-      setStory(response.data.response);
-    } catch (error) {
-      console.error(error);
-      alert('Failed to fetch story');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const moveSnake = () => {
+        const newHead = { 
+            x: snake[0].x + direction.x, 
+            y: snake[0].y + direction.y 
+        };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>Fairy Tale Generator</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Hero"
-          value={hero}
-          onChangeText={setHero}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Villain"
-          value={villain}
-          onChangeText={setVillain}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Plot"
-          value={plot}
-          onChangeText={setPlot}
-        />
-        <Button title="Generate Story" onPress={getStory} />
-        {loading && <ActivityIndicator size="large" color="#0000ff" />}
-        {story && (
-          <View style={styles.storyBox}>
-            <Text style={styles.storyText}>{story}</Text>
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
+        if (checkCollision(newHead)) {
+            Alert.alert('Game Over', `Your score is ${score}`);
+            setSnake([{ x: 8, y: 8 }]);
+            setDirection(directions.RIGHT);
+            setFood(getRandomPosition);
+            setScore(0);
+            return;
+        }
+        
+        const newSnake = [newHead, ...snake];
+        if (newHead.x === food.x && newHead.y === food.y) {
+            setFood(getRandomPosition);
+            setScore(score + 1);
+        } else {
+            newSnake.pop();
+        }
+        setSnake(newSnake);
+    };
+
+    const checkCollision = (head) => {
+        if (
+            head.x < 0 || head.x >= BOARD_SIZE || 
+            head.y < 0 || head.y >= BOARD_SIZE || 
+            snake.some(segment => segment.x === head.x && segment.y === head.y)
+        ) {
+            return true;
+        }
+        return false;
+    };
+
+    const changeDirection = (newDirection) => {
+        if (
+            (direction.x + newDirection.x !== 0 || direction.y + newDirection.y !== 0) // Preventing reverse direction
+        ) {
+            setDirection(newDirection);
+        }
+    };
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <View style={styles.board}>
+                {Array.from({ length: BOARD_SIZE }).map((_, rowIdx) => (
+                    <View key={rowIdx} style={styles.row}>
+                        {Array.from({ length: BOARD_SIZE }).map((_, colIdx) => (
+                            <View 
+                                key={colIdx}
+                                style={[
+                                    styles.cell, 
+                                    snake.some(segment => segment.x === colIdx && segment.y === rowIdx) &&
+                                    styles.snake,
+                                    food.x === colIdx && food.y === rowIdx && styles.food
+                                ]}
+                            />
+                        ))}
+                    </View>
+                ))}
+            </View>
+            <Text style={styles.score}>Score: {score}</Text>
+            <View style={styles.controls}>
+                <View style={styles.row}>
+                    <TouchableOpacity onPress={() => changeDirection(directions.UP)} style={styles.control}>
+                        <Text style={styles.controlText}>↑</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.row}>
+                    <TouchableOpacity onPress={() => changeDirection(directions.LEFT)} style={styles.control}>
+                        <Text style={styles.controlText}>←</Text>
+                    </TouchableOpacity>
+                    <View style={styles.controlSpacer} />
+                    <TouchableOpacity onPress={() => changeDirection(directions.RIGHT)} style={styles.control}>
+                        <Text style={styles.controlText}>→</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.row}>
+                    <TouchableOpacity onPress={() => changeDirection(directions.DOWN)} style={styles.control}>
+                        <Text style={styles.controlText}>↓</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </SafeAreaView>
+    );
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    marginTop: 30,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  input: {
-    width: '100%',
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    marginBottom: 15,
-  },
-  storyBox: {
-    backgroundColor: '#E5E5E5',
-    padding: 20,
-    borderRadius: 10,
-    marginTop: 20,
-  },
-  storyText: {
-    fontSize: 16,
-  },
+    container: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: Platform.OS === 'android' ? 25 : 0, // Padding for Android status bar
+    },
+    board: {
+        flexDirection: 'column',
+        borderWidth: 1,
+        borderColor: '#000',
+    },
+    row: {
+        flexDirection: 'row',
+    },
+    cell: {
+        width: CELL_SIZE,
+        height: CELL_SIZE,
+        borderWidth: 0.5,
+        borderColor: '#ddd',
+    },
+    snake: {
+        backgroundColor: 'green',
+    },
+    food: {
+        backgroundColor: 'red',
+    },
+    score: {
+        fontSize: 20,
+        textAlign: 'center',
+        margin: 10,
+    },
+    controls: {
+        marginTop: 20,
+    },
+    control: {
+        width: 60,
+        height: 60,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#ccc',
+        borderWidth: 1,
+        borderColor: '#999',
+        borderRadius: 30,
+    },
+    controlSpacer: {
+        width: 60, // Same width as control to space correctly
+    },
+    controlText: {
+        fontSize: 30,
+    },
 });
+
+export default App;
