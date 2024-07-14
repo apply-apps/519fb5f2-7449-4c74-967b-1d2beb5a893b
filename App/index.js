@@ -1,11 +1,13 @@
 // Filename: index.js
 // Combined code from all files
+
 import React, { useState, useEffect, useRef } from 'react';
-import { SafeAreaView, StyleSheet, View, Text, Alert, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, View, TouchableOpacity, Alert, Platform } from 'react-native';
 
+const BOARD_SIZE = 16;
 const CELL_SIZE = 20;
-const BOARD_SIZE = 16; // 16x16 grid
 
+// useGameLogic logic
 const directions = {
     UP: { x: 0, y: -1 },
     DOWN: { x: 0, y: 1 },
@@ -21,7 +23,7 @@ const getRandomPosition = () => {
     };
 };
 
-const App = () => {
+const useGameLogic = () => {
     const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
     const [direction, setDirection] = useState(directions.RIGHT);
     const [food, setFood] = useState(getRandomPosition);
@@ -37,9 +39,9 @@ const App = () => {
     }, [snake, direction]);
 
     const moveSnake = () => {
-        const newHead = { 
-            x: snake[0].x + direction.x, 
-            y: snake[0].y + direction.y 
+        const newHead = {
+            x: snake[0].x + direction.x,
+            y: snake[0].y + direction.y
         };
 
         if (checkCollision(newHead)) {
@@ -50,7 +52,7 @@ const App = () => {
             setScore(0);
             return;
         }
-        
+
         const newSnake = [newHead, ...snake];
         if (newHead.x === food.x && newHead.y === food.y) {
             setFood(getRandomPosition);
@@ -63,8 +65,8 @@ const App = () => {
 
     const checkCollision = (head) => {
         if (
-            head.x < 0 || head.x >= BOARD_SIZE || 
-            head.y < 0 || head.y >= BOARD_SIZE || 
+            head.x < 0 || head.x >= BOARD_SIZE ||
+            head.y < 0 || head.y >= BOARD_SIZE ||
             snake.some(segment => segment.x === head.x && segment.y === head.y)
         ) {
             return true;
@@ -72,16 +74,29 @@ const App = () => {
         return false;
     };
 
-    const changeDirection = (newDirection) => {
-        if (
-            (direction.x + newDirection.x !== 0 || direction.y + newDirection.y !== 0) // Preventing reverse direction
-        ) {
+    const changeDirection = (newDirectionKey) => {
+        const newDirection = directions[newDirectionKey];
+        if ((direction.x + newDirection.x !== 0 || direction.y + newDirection.y !== 0)) {
             setDirection(newDirection);
         }
     };
 
+    return {
+        snake,
+        food,
+        score,
+        direction,
+        moveSnake,
+        changeDirection,
+    };
+};
+
+// GameBoard component
+const GameBoard = () => {
+    const { snake, food, score, direction, moveSnake, changeDirection } = useGameLogic();
+
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.boardContainer}>
             <View style={styles.board}>
                 {Array.from({ length: BOARD_SIZE }).map((_, rowIdx) => (
                     <View key={rowIdx} style={styles.row}>
@@ -90,8 +105,7 @@ const App = () => {
                                 key={colIdx}
                                 style={[
                                     styles.cell, 
-                                    snake.some(segment => segment.x === colIdx && segment.y === rowIdx) &&
-                                    styles.snake,
+                                    snake.some(segment => segment.x === colIdx && segment.y === rowIdx) && styles.snake,
                                     food.x === colIdx && food.y === rowIdx && styles.food
                                 ]}
                             />
@@ -102,35 +116,42 @@ const App = () => {
             <Text style={styles.score}>Score: {score}</Text>
             <View style={styles.controls}>
                 <View style={styles.row}>
-                    <TouchableOpacity onPress={() => changeDirection(directions.UP)} style={styles.control}>
+                    <TouchableOpacity onPress={() => changeDirection('UP')} style={styles.control}>
                         <Text style={styles.controlText}>↑</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={styles.row}>
-                    <TouchableOpacity onPress={() => changeDirection(directions.LEFT)} style={styles.control}>
+                    <TouchableOpacity onPress={() => changeDirection('LEFT')} style={styles.control}>
                         <Text style={styles.controlText}>←</Text>
                     </TouchableOpacity>
                     <View style={styles.controlSpacer} />
-                    <TouchableOpacity onPress={() => changeDirection(directions.RIGHT)} style={styles.control}>
+                    <TouchableOpacity onPress={() => changeDirection('RIGHT')} style={styles.control}>
                         <Text style={styles.controlText}>→</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={styles.row}>
-                    <TouchableOpacity onPress={() => changeDirection(directions.DOWN)} style={styles.control}>
+                    <TouchableOpacity onPress={() => changeDirection('DOWN')} style={styles.control}>
                         <Text style={styles.controlText}>↓</Text>
                     </TouchableOpacity>
                 </View>
             </View>
-        </SafeAreaView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        paddingTop: Platform.OS === 'android' ? 25 : 0, // Padding for Android status bar
+    },
+    title: {
+        fontSize: 24,
+        textAlign: 'center',
+        margin: 20,
+    },
+    boardContainer: {
         justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: Platform.OS === 'android' ? 25 : 0, // Padding for Android status bar
     },
     board: {
         flexDirection: 'column',
@@ -177,5 +198,15 @@ const styles = StyleSheet.create({
         fontSize: 30,
     },
 });
+
+// App component
+const App = () => {
+    return (
+        <SafeAreaView style={styles.container}>
+            <Text style={styles.title}>Snake Game</Text>
+            <GameBoard />
+        </SafeAreaView>
+    );
+};
 
 export default App;
